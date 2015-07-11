@@ -6,28 +6,29 @@ import (
 	"github.com/hashicorp/hcl"
 	hclhcl "github.com/hashicorp/hcl/hcl"
 
-	tfconfig "github.com/hashicorp/terraform/config"
+	tfcfg "github.com/hashicorp/terraform/config"
+	tfmodcfg "github.com/hashicorp/terraform/config/module"
 )
 
 type Config struct {
 	Filename string
 
-	Variables []*tfconfig.Variable
+	Variables []*tfcfg.Variable
 	Artifacts []*Artifact
-	Outputs   []*tfconfig.Output
+	Outputs   []*tfcfg.Output
 }
 
 type Artifact struct {
 	Name string
 
-	Providers    []*tfconfig.ProviderConfig
+	Providers    []*tfcfg.ProviderConfig
 	Intermediate *ResourceSet
 	Result       *ResourceSet
 }
 
 type ResourceSet struct {
-	Modules   []*tfconfig.Module
-	Resources []*tfconfig.Resource
+	Modules   []*tfcfg.Module
+	Resources []*tfcfg.Resource
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -64,7 +65,7 @@ func NewConfigFromHCL(rawConfig *hclhcl.Object, filename string) (*Config, error
 	return config, nil
 }
 
-func loadVariablesHcl(rawConfig *hclhcl.Object) ([]*tfconfig.Variable, error) {
+func loadVariablesHcl(rawConfig *hclhcl.Object) ([]*tfcfg.Variable, error) {
 
 	type hclVariable struct {
 		Default     interface{}
@@ -79,7 +80,7 @@ func loadVariablesHcl(rawConfig *hclhcl.Object) ([]*tfconfig.Variable, error) {
 		return nil, err
 	}
 
-	variables := make([]*tfconfig.Variable, 0, len(variablesHcl))
+	variables := make([]*tfcfg.Variable, 0, len(variablesHcl))
 
 	for k, v := range variablesHcl {
 		if ms, ok := v.Default.([]map[string]interface{}); ok {
@@ -92,7 +93,7 @@ func loadVariablesHcl(rawConfig *hclhcl.Object) ([]*tfconfig.Variable, error) {
 			v.Default = def
 		}
 
-		variable := &tfconfig.Variable{
+		variable := &tfcfg.Variable{
 			Name:        k,
 			Default:     v.Default,
 			Description: v.Description,
@@ -102,4 +103,22 @@ func loadVariablesHcl(rawConfig *hclhcl.Object) ([]*tfconfig.Variable, error) {
 	}
 
 	return variables, nil
+}
+
+func (c *Config) TerraformWorkTree() *tfmodcfg.Tree {
+	return c.terraformTree(true)
+}
+
+func (c *Config) TerraformResultTree() *tfmodcfg.Tree {
+	return c.terraformTree(false)
+}
+
+func (c *Config) terraformTree(includeIntermediates bool) *tfmodcfg.Tree {
+
+	rootConfig := &tfcfg.Config{
+	}
+
+	root := tfmodcfg.NewTree("", rootConfig)
+
+	return root
 }
