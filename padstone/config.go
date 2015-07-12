@@ -18,18 +18,11 @@ import (
 type Config struct {
 	SourcePath string
 
-	Variables []*tfcfg.Variable
-	Providers []*tfcfg.ProviderConfig
-	Artifacts []*Artifact
-	Outputs   []*tfcfg.Output
-}
-
-type Artifact struct {
-	Name string
-
-	Intermediates *ResourceSet
-	Results       *ResourceSet
-	Outputs       []*tfcfg.Output
+	Variables   []*tfcfg.Variable
+	Providers   []*tfcfg.ProviderConfig
+	Temporaries *ResourceSet
+	Results     *ResourceSet
+	Outputs     []*tfcfg.Output
 }
 
 type ResourceSet struct {
@@ -48,9 +41,16 @@ func LoadConfig(path string) (*Config, error) {
 	config := &Config{
 		SourcePath: path,
 		Variables:  []*tfcfg.Variable{},
-		Artifacts:  []*Artifact{},
-		Providers:  []*tfcfg.ProviderConfig{},
-		Outputs:    []*tfcfg.Output{},
+		Temporaries: &ResourceSet{
+			Modules:   []*tfcfg.Module{},
+			Resources: []*tfcfg.Resource{},
+		},
+		Results: &ResourceSet{
+			Modules:   []*tfcfg.Module{},
+			Resources: []*tfcfg.Resource{},
+		},
+		Providers: []*tfcfg.ProviderConfig{},
+		Outputs:   []*tfcfg.Output{},
 	}
 
 	for _, filename := range filenames {
@@ -68,8 +68,25 @@ func LoadConfig(path string) (*Config, error) {
 		for _, variable := range fileConfig.Variables {
 			config.Variables = append(config.Variables, variable)
 		}
-		for _, artifact := range fileConfig.Artifacts {
-			config.Artifacts = append(config.Artifacts, artifact)
+		for _, resource := range fileConfig.Temporaries.Resources {
+			config.Temporaries.Resources = append(
+				config.Temporaries.Resources, resource,
+			)
+		}
+		for _, module := range fileConfig.Temporaries.Modules {
+			config.Temporaries.Modules = append(
+				config.Temporaries.Modules, module,
+			)
+		}
+		for _, resource := range fileConfig.Results.Resources {
+			config.Results.Resources = append(
+				config.Results.Resources, resource,
+			)
+		}
+		for _, module := range fileConfig.Results.Modules {
+			config.Results.Modules = append(
+				config.Results.Modules, module,
+			)
 		}
 		for _, provider := range fileConfig.Providers {
 			config.Providers = append(config.Providers, provider)
@@ -95,7 +112,17 @@ func NewConfigFromHCL(rawConfig *hclhcl.Object, filename string) (*Config, error
 	fmt.Print("\n")
 	config := &Config{
 		SourcePath: filename,
+		Temporaries: &ResourceSet{
+			Resources: []*tfcfg.Resource{},
+			Modules:   []*tfcfg.Module{},
+		},
+		Results: &ResourceSet{
+			Resources: []*tfcfg.Resource{},
+			Modules:   []*tfcfg.Module{},
+		},
 	}
+
+	var err error
 
 	if rawVariables := rawConfig.Get("variable", false); rawVariables != nil {
 		variables, err := loadVariablesHcl(rawVariables)
@@ -105,12 +132,32 @@ func NewConfigFromHCL(rawConfig *hclhcl.Object, filename string) (*Config, error
 		config.Variables = variables
 	}
 
-	if rawArtifacts := rawConfig.Get("artifact", false); rawArtifacts != nil {
-		artifacts, err := loadArtifactsHcl(rawArtifacts)
+	if rawResources := rawConfig.Get("temporary_resource", false); rawResources != nil {
+		config.Temporaries.Resources, err = tfcfg.LoadResourcesHCL(rawResources)
 		if err != nil {
 			return nil, err
 		}
-		config.Artifacts = artifacts
+	}
+
+	if rawModules := rawConfig.Get("temporary_module", false); rawModules != nil {
+		config.Temporaries.Modules, err = tfcfg.LoadModulesHCL(rawModules)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if rawResources := rawConfig.Get("resource", false); rawResources != nil {
+		config.Results.Resources, err = tfcfg.LoadResourcesHCL(rawResources)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if rawModules := rawConfig.Get("module", false); rawModules != nil {
+		config.Results.Modules, err = tfcfg.LoadModulesHCL(rawModules)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if rawOutputs := rawConfig.Get("output", false); rawOutputs != nil {
@@ -175,87 +222,6 @@ func loadVariablesHcl(rawConfig *hclhcl.Object) ([]*tfcfg.Variable, error) {
 	return variables, nil
 }
 
-func loadArtifactsHcl(rawConfig *hclhcl.Object) ([]*Artifact, error) {
-	artifactsHcl := rawConfig.Elem(true)
-
-	artifacts := make([]*Artifact, 0, len(artifactsHcl))
-
-	type artifactHclStruct struct {
-		Intermediates *hclhcl.Object
-		Results       *hclhcl.Object
-	}
-
-	var err error
-	for _, v := range artifactsHcl {
-		artifact := &Artifact{
-			Name: v.Key,
-		}
-
-		if rawIntermediates := v.Get("intermediates", false); rawIntermediates != nil {
-			artifact.Intermediates, err = loadResourceSetHcl(rawIntermediates)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			artifact.Intermediates = emptyResourceSet()
-		}
-
-		if rawResults := v.Get("results", false); rawResults != nil {
-			artifact.Results, err = loadResourceSetHcl(rawResults)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			artifact.Results = emptyResourceSet()
-		}
-
-		if rawOutputs := v.Get("output", false); rawOutputs != nil {
-			artifact.Outputs, err = tfcfg.LoadOutputsHCL(rawOutputs)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			artifact.Outputs = []*tfcfg.Output{}
-		}
-
-		artifacts = append(artifacts, artifact)
-	}
-
-	return artifacts, nil
-}
-
-func loadResourceSetHcl(rawConfig *hclhcl.Object) (*ResourceSet, error) {
-	set := &ResourceSet{
-		Modules:   []*tfcfg.Module{},
-		Resources: []*tfcfg.Resource{},
-	}
-
-	var err error
-
-	if rawModules := rawConfig.Get("module", false); rawModules != nil {
-		set.Modules, err = tfcfg.LoadModulesHCL(rawModules)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if rawResources := rawConfig.Get("resource", false); rawResources != nil {
-		set.Resources, err = tfcfg.LoadResourcesHCL(rawResources)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return set, nil
-}
-
-func emptyResourceSet() *ResourceSet {
-	return &ResourceSet{
-		Modules:   []*tfcfg.Module{},
-		Resources: []*tfcfg.Resource{},
-	}
-}
-
 func configFilesInDir(dir string) ([]string, error) {
 	f, err := os.Open(dir)
 	if err != nil {
@@ -313,15 +279,21 @@ func (c *Config) TerraformResultTree() *tfmodcfg.Tree {
 }
 
 func (c *Config) terraformTree(includeIntermediates bool) *tfmodcfg.Tree {
-
-	rootConfig := &tfcfg.Config{
+	tfConfig := &tfcfg.Config{
+		Dir:       c.SourcePath,
 		Variables: c.Variables,
+		Resources: make(
+			[]*tfcfg.Resource,
+			0,
+			len(c.Temporaries.Resources)+len(c.Results.Resources),
+		),
+		Modules: make(
+			[]*tfcfg.Module,
+			0,
+			len(c.Temporaries.Modules)+len(c.Results.Modules),
+		),
 	}
-
-	root := tfmodcfg.NewTree("", rootConfig)
-	root.SetPath([]string{"root"})
-
-	return root
+	return tfmodcfg.NewTree("", tfConfig)
 }
 
 func ext(path string) string {
