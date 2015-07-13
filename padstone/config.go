@@ -270,15 +270,7 @@ func configFilesInDir(dir string) ([]string, error) {
 	return files, nil
 }
 
-func (c *Config) TerraformWorkTree() *tfmodcfg.Tree {
-	return c.terraformTree(true)
-}
-
-func (c *Config) TerraformResultTree() *tfmodcfg.Tree {
-	return c.terraformTree(false)
-}
-
-func (c *Config) terraformTree(includeIntermediates bool) *tfmodcfg.Tree {
+func (c *Config) TerraformModuleTree() *tfmodcfg.Tree {
 	tfConfig := &tfcfg.Config{
 		Dir:       c.SourcePath,
 		Variables: c.Variables,
@@ -293,6 +285,21 @@ func (c *Config) terraformTree(includeIntermediates bool) *tfmodcfg.Tree {
 			len(c.Temporaries.Modules)+len(c.Results.Modules),
 		),
 	}
+
+	for _, resource := range c.Temporaries.Resources {
+		tfConfig.Resources = append(tfConfig.Resources, resource)
+	}
+	for _, module := range c.Temporaries.Modules {
+		tfConfig.Modules = append(tfConfig.Modules, module)
+	}
+
+	for _, resource := range c.Results.Resources {
+		tfConfig.Resources = append(tfConfig.Resources, resource)
+	}
+	for _, module := range c.Results.Modules {
+		tfConfig.Modules = append(tfConfig.Modules, module)
+	}
+
 	return tfmodcfg.NewTree("", tfConfig)
 }
 
