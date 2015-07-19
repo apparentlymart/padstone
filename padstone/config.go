@@ -272,8 +272,10 @@ func configFilesInDir(dir string) ([]string, error) {
 
 func (c *Config) TerraformModuleTree() *tfmodcfg.Tree {
 	tfConfig := &tfcfg.Config{
-		Dir:       c.SourcePath,
-		Variables: c.Variables,
+		Dir:             c.SourcePath,
+		Variables:       c.Variables,
+		Outputs:         c.Outputs,
+		ProviderConfigs: c.Providers,
 		Resources: make(
 			[]*tfcfg.Resource,
 			0,
