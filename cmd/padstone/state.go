@@ -7,10 +7,10 @@ import (
 	"github.com/hashicorp/terraform/terraform"
 )
 
-func WriteState(state *terraform.State) error {
+func WriteState(state *terraform.State, outFile string) error {
 	// TODO: Make this file location customizable, and also don't re-open this
 	// file every time.
-	f, err := os.OpenFile("padstone-scratch.tfstate", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0777)
+	f, err := os.OpenFile(outFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("error opening state file: %s\n", err)
 	}

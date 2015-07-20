@@ -8,40 +8,47 @@ import (
 
 type UIHook struct {
 	terraform.NilHook
+
+	ui *UI
+	verbose bool
 }
 
 func (h *UIHook) PreApply(instance *terraform.InstanceInfo, istate *terraform.InstanceState, diff *terraform.InstanceDiff) (terraform.HookAction, error) {
 	if diff.Destroy || diff.DestroyTainted {
-		fmt.Printf("Destroying %v...\n", instance.HumanId())
+		h.ui.Info(fmt.Sprintf("[%v] Destroying ...", instance.HumanId()))
 	} else {
-		fmt.Printf("Creating %v...\n", instance.HumanId())
+		h.ui.Info(fmt.Sprintf("[%v] Creating...", instance.HumanId()))
 	}
 	return terraform.HookActionContinue, nil
 }
 
 func (h *UIHook) PostApply(instance *terraform.InstanceInfo, istate *terraform.InstanceState, err error) (terraform.HookAction, error) {
 	if err != nil {
-		fmt.Printf("Error for %v: %v\n", instance.HumanId(), err.Error())
+		h.ui.Error(fmt.Sprintf("[%v] Error during apply: %v", instance.HumanId(), err.Error()))
 	} else {
-		if istate.ID != "" {
-			fmt.Printf("Successfully created %v as %v\n", instance.HumanId(), istate.ID)
-		} else {
-			fmt.Printf("Successfully destroyed %v\n", instance.HumanId())
+		if h.verbose {
+			if istate.ID != "" {
+				h.ui.Info(fmt.Sprintf("[%v] Successfully created as %v", instance.HumanId(), istate.ID))
+			} else {
+				h.ui.Info(fmt.Sprintf("[%v] Successfully destroyed", instance.HumanId()))
+			}
 		}
 	}
 	return terraform.HookActionContinue, nil
 }
 
 func (h *UIHook) PreProvisionResource(instance *terraform.InstanceInfo, istate *terraform.InstanceState) (terraform.HookAction, error) {
-	fmt.Printf("Provisioning %v...\n", instance.HumanId())
+	h.ui.Info(fmt.Sprintf("[%v] Provisioning...", instance.HumanId()))
 	return terraform.HookActionContinue, nil
 }
 
 func (h *UIHook) PostProvisionResource(instance *terraform.InstanceInfo, istate *terraform.InstanceState) (terraform.HookAction, error) {
-	fmt.Printf("Successfully provisioned %v\n", instance.HumanId())
+	if h.verbose {
+		h.ui.Info(fmt.Sprintf("[%v] Successfully provisioned", instance.HumanId()))
+	}
 	return terraform.HookActionContinue, nil
 }
 
 func (h *UIHook) ProvisionOutput(instance *terraform.InstanceInfo, name string, line string) {
-	fmt.Printf("[%v %v] %v\n", instance.HumanId(), name, line)
+	h.ui.Info(fmt.Sprintf("[%v %v] %v", instance.HumanId(), name, line))
 }

@@ -6,10 +6,12 @@ import (
 
 type StateHook struct {
 	terraform.NilHook
+
+	OutputFilename string
 }
 
 func (h *StateHook) PostStateUpdate(state *terraform.State) (terraform.HookAction, error) {
-	err := WriteState(state)
+	err := WriteState(state, h.OutputFilename)
 	if err != nil {
 		return terraform.HookActionHalt, err
 	}
