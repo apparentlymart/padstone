@@ -47,6 +47,14 @@ func main() {
 			ui: ui,
 		},
 	)
+	clParser.AddCommand(
+		"destroy",
+		"Destroy the results of a build",
+		"The 'destroy' command destroys the resources from an earlier build",
+		&DestroyCommand{
+			ui: ui,
+		},
+	)
 
 	if _, err := clParser.Parse(); err != nil {
 		os.Exit(1)
