@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/apparentlymart/padstone/padstone"
 
@@ -57,15 +56,9 @@ func (c *BuildCommand) Execute(args []string) error {
 		OutputFilename: c.Args.StateFile,
 	}
 
-	variables := map[string]string{}
-	for _, varSpec := range c.Args.VarSpecs {
-		equalsIdx := strings.Index(varSpec, "=")
-		if equalsIdx == -1 {
-			return fmt.Errorf("variable spec %#v must be formatted as key=value", varSpec)
-		}
-		k := varSpec[:equalsIdx]
-		v := varSpec[equalsIdx+1:]
-		variables[k] = v
+	variables, err := decodeKVSpecs(c.Args.VarSpecs)
+	if err != nil {
+		return err
 	}
 
 	ctx := &padstone.Context{
