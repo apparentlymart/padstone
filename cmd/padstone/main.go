@@ -55,6 +55,14 @@ func main() {
 			ui: ui,
 		},
 	)
+	clParser.AddCommand(
+		"publish",
+		"Publish a state file to remote storage",
+		"The 'publish' command uploads a state file to remote storage",
+		&PublishCommand{
+			ui: ui,
+		},
+	)
 
 	if _, err := clParser.Parse(); err != nil {
 		os.Exit(1)
