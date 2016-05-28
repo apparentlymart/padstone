@@ -185,5 +185,36 @@ func loadConfigProviders(hclConfig *ast.ObjectList) ([]*tfcfg.ProviderConfig, er
 }
 
 func loadConfigTargets(hclConfig *ast.ObjectList) ([]*TargetConfig, error) {
-	return nil, nil
+	hclConfig = hclConfig.Children()
+	result := make([]*TargetConfig, 0, len(hclConfig.Items))
+
+	if len(hclConfig.Items) == 0 {
+		return result, nil
+	}
+
+	for _, item := range hclConfig.Items {
+		n := item.Keys[0].Token.Value().(string)
+
+		var listVal *ast.ObjectList
+		if ot, ok := item.Val.(*ast.ObjectType); ok {
+			listVal = ot.List
+		} else {
+			return nil, fmt.Errorf("target '%s': should be a block", n)
+		}
+
+		target := &TargetConfig{
+			Name: n,
+		}
+
+		var err error
+
+		target.Providers, err = loadConfigProviders(listVal.Filter("provider"))
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, target)
+	}
+
+	return result, nil
 }

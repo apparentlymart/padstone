@@ -35,7 +35,7 @@ func TestConfigParsing(t *testing.T) {
 
 	// Provider blocks
 	{
-		if got, want := len(config.Providers), 2; got != want {
+		if got, want := len(config.Providers), 1; got != want {
 			t.Fatalf("got %d providers; want %d", got, want)
 		}
 
@@ -48,15 +48,41 @@ func TestConfigParsing(t *testing.T) {
 		if got, want := config.Providers[0].RawConfig.Raw["region"], "us-west-2"; got != want {
 			t.Fatalf("provider 0 region %q; want %q", got, want)
 		}
+	}
 
-		if got, want := config.Providers[1].Name, "aws"; got != want {
-			t.Fatalf("provider 1 named %q; want %q", got, want)
+	// Target blocks
+	{
+		if got, want := len(config.Targets), 3; got != want {
+			t.Fatalf("got %d targets; want %d", got, want)
 		}
-		if got, want := config.Providers[1].Alias, "use1"; got != want {
-			t.Fatalf("provider 1 alias %q; want %q", got, want)
+
+		if got, want := config.Targets[0].Name, "ami"; got != want {
+			t.Fatalf("target 0 named %q; want %q", got, want)
 		}
-		if got, want := config.Providers[1].RawConfig.Raw["region"], "us-east-1"; got != want {
-			t.Fatalf("provider 1 region %q; want %q", got, want)
+		if got, want := config.Targets[1].Name, "ami_source_instance"; got != want {
+			t.Fatalf("target 1 named %q; want %q", got, want)
+		}
+		if got, want := config.Targets[2].Name, "dev"; got != want {
+			t.Fatalf("target 2 named %q; want %q", got, want)
+		}
+
+		{
+			target := config.Targets[0]
+
+			if got, want := len(target.Providers), 1; got != want {
+				t.Fatalf("target 0 has %d providers; want %d", got, want)
+			}
+			if got, want := target.Providers[0].Name, "aws"; got != want {
+				t.Fatalf("target 0 provider named %q; want %q", got, want)
+			}
+		}
+
+		{
+			target := config.Targets[1]
+
+			if got, want := len(target.Providers), 0; got != want {
+				t.Fatalf("target 1 has %d providers; want %d", got, want)
+			}
 		}
 	}
 }
@@ -71,15 +97,15 @@ provider "aws" {
   region = "us-west-2"
 }
 
-provider "aws" {
-  region = "us-east-1"
-  alias = "use1"
-}
-
 default_build_targets = ["ami"]
 default_dev_targets = ["dev"]
 
 target "ami" {
+  provider "aws" {
+    region = "us-east-1"
+    alias = "use1"
+  }
+
   resource "aws_ami_from_instance" "result" {
     instance_id = "${target.ami_source_instance.id}"
   }
