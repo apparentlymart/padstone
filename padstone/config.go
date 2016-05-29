@@ -146,7 +146,7 @@ func loadConfigProviders(hclConfig *ast.ObjectList) ([]*tfcfg.ProviderConfig, er
 		if ot, ok := item.Val.(*ast.ObjectType); ok {
 			listVal = ot.List
 		} else {
-			return nil, fmt.Errorf("module '%s': should be a block", n)
+			return nil, fmt.Errorf("provider '%s': should be a block", n)
 		}
 
 		var config map[string]interface{}
@@ -213,7 +213,64 @@ func loadConfigTargets(hclConfig *ast.ObjectList) ([]*TargetConfig, error) {
 			return nil, err
 		}
 
+		target.Modules, err = loadConfigModules(listVal.Filter("module"))
+		if err != nil {
+			return nil, err
+		}
+
 		result = append(result, target)
+	}
+
+	return result, nil
+}
+
+func loadConfigModules(hclConfig *ast.ObjectList) ([]*tfcfg.Module, error) {
+	hclConfig = hclConfig.Children()
+	result := make([]*tfcfg.Module, 0, len(hclConfig.Items))
+
+	if len(hclConfig.Items) == 0 {
+		return result, nil
+	}
+
+	for _, item := range hclConfig.Items {
+		n := item.Keys[0].Token.Value().(string)
+
+		var listVal *ast.ObjectList
+		if ot, ok := item.Val.(*ast.ObjectType); ok {
+			listVal = ot.List
+		} else {
+			return nil, fmt.Errorf("module '%s': should be a block", n)
+		}
+
+		var config map[string]interface{}
+		if err := hcl.DecodeObject(&config, item.Val); err != nil {
+			return nil, err
+		}
+
+		delete(config, "source")
+
+		rawConfig, err := tfcfg.NewRawConfig(config)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"error reading module config %s: %s", n, err,
+			)
+		}
+
+		var source string
+		if a := listVal.Filter("source"); len(a.Items) > 0 {
+			err := hcl.DecodeObject(&source, a.Items[0].Val)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"error reading module %s source: %s", n, err,
+				)
+			}
+		}
+
+		result = append(result, &tfcfg.Module{
+			Name:      n,
+			Source:    source,
+			RawConfig: rawConfig,
+		})
 	}
 
 	return result, nil

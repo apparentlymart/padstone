@@ -83,6 +83,19 @@ func TestConfigParsing(t *testing.T) {
 			if got, want := len(target.Providers), 0; got != want {
 				t.Fatalf("target 1 has %d providers; want %d", got, want)
 			}
+
+			if got, want := len(target.Modules), 1; got != want {
+				t.Fatalf("target 1 has %d modules; want %d", got, want)
+			}
+			if got, want := target.Modules[0].Name, "build_support"; got != want {
+				t.Fatalf("target 1 module named %q; want %q", got, want)
+			}
+			if got, want := target.Modules[0].Source, "./build_support"; got != want {
+				t.Fatalf("target 1 module source %q; want %q", got, want)
+			}
+			if got, want := target.Modules[0].RawConfig.Raw["vpc_id"], "vpc-12345"; got != want {
+				t.Fatalf("target 1 module vpc_id %q; want %q", got, want)
+			}
 		}
 	}
 }
@@ -129,6 +142,7 @@ target "ami" {
 target "ami_source_instance" {
   module "build_support" {
     source = "./build_support"
+    vpc_id = "vpc-12345"
   }
 
   data "aws_ami" "ubuntu" {
