@@ -75,6 +75,19 @@ func TestConfigParsing(t *testing.T) {
 			if got, want := target.Providers[0].Name, "aws"; got != want {
 				t.Fatalf("target 0 provider named %q; want %q", got, want)
 			}
+
+			if got, want := len(target.Outputs), 2; got != want {
+				t.Fatalf("target 0 has %d outputs; want %d", got, want)
+			}
+			if got, want := target.Outputs[0].Name, "usw2_id"; got != want {
+				t.Fatalf("target 0 output 0 named %q; want %q", got, want)
+			}
+			if got, want := target.Outputs[1].Name, "use1_id"; got != want {
+				t.Fatalf("target 0 output 1 named %q; want %q", got, want)
+			}
+			if got, want := target.Outputs[0].RawConfig.Raw["value"], "${aws_ami_from_instance.result.id}"; got != want {
+				t.Fatalf("target 0 output 0 value %q; want %q", got, want)
+			}
 		}
 
 		{

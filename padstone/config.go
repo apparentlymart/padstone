@@ -218,6 +218,11 @@ func loadConfigTargets(hclConfig *ast.ObjectList) ([]*TargetConfig, error) {
 			return nil, err
 		}
 
+		target.Outputs, err = loadConfigOutputs(listVal.Filter("output"))
+		if err != nil {
+			return nil, err
+		}
+
 		result = append(result, target)
 	}
 
@@ -269,6 +274,42 @@ func loadConfigModules(hclConfig *ast.ObjectList) ([]*tfcfg.Module, error) {
 		result = append(result, &tfcfg.Module{
 			Name:      n,
 			Source:    source,
+			RawConfig: rawConfig,
+		})
+	}
+
+	return result, nil
+}
+
+func loadConfigOutputs(hclConfig *ast.ObjectList) ([]*tfcfg.Output, error) {
+	hclConfig = hclConfig.Children()
+	result := make([]*tfcfg.Output, 0, len(hclConfig.Items))
+
+	if len(hclConfig.Items) == 0 {
+		return result, nil
+	}
+
+	for _, item := range hclConfig.Items {
+		n := item.Keys[0].Token.Value().(string)
+
+		if _, ok := item.Val.(*ast.ObjectType); !ok {
+			return nil, fmt.Errorf("output '%s': should be a block", n)
+		}
+
+		var config map[string]interface{}
+		if err := hcl.DecodeObject(&config, item.Val); err != nil {
+			return nil, err
+		}
+
+		rawConfig, err := tfcfg.NewRawConfig(config)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"error reading output config %s: %s", n, err,
+			)
+		}
+
+		result = append(result, &tfcfg.Output{
+			Name:      n,
 			RawConfig: rawConfig,
 		})
 	}
