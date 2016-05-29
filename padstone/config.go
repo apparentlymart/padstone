@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/hcl/ast"
 
 	tfcfg "github.com/hashicorp/terraform/config"
+	tfmod "github.com/hashicorp/terraform/config/module"
 )
 
 type Config struct {
@@ -72,6 +73,58 @@ func NewConfigFromHCL(hclConfig *ast.ObjectList, filename string) (*Config, erro
 	}
 
 	return config, nil
+}
+
+func (c *Config) TargetModuleTrees() map[string]*tfmod.Tree {
+	ret := make(map[string]*tfmod.Tree)
+
+	type providerKey struct {
+		Name  string
+		Alias string
+	}
+
+	for _, target := range c.Targets {
+
+		// Build a per-target module configuration set by starting with
+		// the global configs and then letting the target configs override
+		// them.
+		var flatProviders []*tfcfg.ProviderConfig
+		{
+			flatProvidersMap := map[providerKey]*tfcfg.ProviderConfig{}
+
+			for _, provider := range c.Providers {
+				key := providerKey{
+					Name:  provider.Name,
+					Alias: provider.Alias,
+				}
+				flatProvidersMap[key] = provider
+			}
+			for _, provider := range target.Providers {
+				key := providerKey{
+					Name:  provider.Name,
+					Alias: provider.Alias,
+				}
+				flatProvidersMap[key] = provider
+			}
+
+			flatProviders = make([]*tfcfg.ProviderConfig, 0, len(flatProvidersMap))
+			for _, provider := range flatProvidersMap {
+				flatProviders = append(flatProviders, provider)
+			}
+		}
+
+		tfConfig := &tfcfg.Config{
+			Variables:       c.Variables,
+			Modules:         target.Modules,
+			Resources:       target.Resources,
+			Outputs:         target.Outputs,
+			ProviderConfigs: flatProviders,
+		}
+
+		ret[target.Name] = tfmod.NewTree("", tfConfig)
+	}
+
+	return ret
 }
 
 func loadConfigVariables(hclConfig *ast.ObjectList) ([]*tfcfg.Variable, error) {
